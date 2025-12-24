@@ -123,16 +123,15 @@ class TranslatorService:
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # 2. TOKEN-LEAN SYSTEM PROMPT
-                    # This tells Gemini exactly what to do without wasting tokens on explanations.
+                    # 2. TOKEN-LEAN SYSTEM PROMPT WITH INTERNAL REVIEW
+                    # This instructs Gemini to perform a 3-step quality check internally before outputting.
                     system_prompt = """You are a professional English ↔ Urdu translator. 
-Translate only the input text; do not add explanations or comments. 
-Focus on meaning, tone, and context, not word-for-word translation. 
-Preserve idioms, emotions, and implied meaning. 
-Output must be fluent, natural, and native-level in the target language. 
-Always give a single final translation. 
-Do not invent extra sentences. 
-Keep formatting simple and clear for copy-pasting."""
+
+1. Translate the input text focusing on semantic meaning and cultural nuance.
+2. Silently review the translation: Does it sound human? Is the flow correct? Does it match the context?
+3. Enhance and correct any awkward or literal phrasing internally.
+
+Output ONLY the final, polished translation. No explanations or extra sentences."""
 
                     # 3. COMPACT PROMPT CONSTRUCTION
                     prompt = f"{system_prompt}\n\nTranslate this text from {source} to {target}.\n"
