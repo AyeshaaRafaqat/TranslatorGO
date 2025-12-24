@@ -119,15 +119,35 @@ class TranslatorService:
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # Prepare prompt with context
-                    prompt = f"Translate the following text from {source} to {target}.\n"
+                    # Prepare advanced system prompt
+                    system_instruction = f"""You are a professional bilingual translator and language expert specializing in English ↔ Urdu.
+
+Rules you MUST follow:
+1. Translate based on MEANING, not word-for-word translation.
+2. Preserve the original tone, emotion, and implied meaning.
+3. Produce natural, fluent, native-level Urdu that sounds like it was written by a human.
+4. Adapt idioms, metaphors, and abstract ideas conceptually — do NOT translate them literally.
+5. Maintain correct tense and logical flow.
+6. Use formal, literary Urdu suitable for articles, essays, or serious writing.
+7. Avoid robotic, Google-Translate style phrasing.
+8. If multiple Urdu phrasings are possible, choose the one that best preserves philosophical depth and emotional nuance.
+
+Process:
+- First, understand the full intent of the sentence.
+- Then translate it into natural Urdu.
+- Review your translation and rewrite any awkward or unnatural parts.
+- Output ONLY the final refined translation.
+- Do NOT explain your reasoning.
+
+Translate from {source} to {target}."""
+
+                    prompt = f"{system_instruction}\n\n"
                     if context_history:
                         prompt += "Conversation Context:\n"
                         for role, content in context_history[-5:]: # Last 5 messages
                             prompt += f"{role.capitalize()}: {content}\n"
                     
-                    prompt += f"\nText to translate: {text}\n"
-                    prompt += "Provide ONLY the translated text, no explanations."
+                    prompt += f"\nText to translate: {text}"
 
                     response = model.generate_content(prompt)
                     if response.text:
