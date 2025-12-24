@@ -5,93 +5,110 @@ from services.translator import TranslatorService
 def main() -> None:
     st.set_page_config(page_title="TranslatorGO", layout="wide")
     
-    # Clean CSS for Parallel UI
+    # Precise CSS to match the reference image theme
     st.markdown("""
         <style>
-        .stTextArea textarea {
-            font-size: 18px !important;
+        /* Hide deploy button and other elements */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        
+        /* Set background and text colors */
+        .main {
+            background-color: #000000;
         }
+        
+        /* Font styles for Input/Output labels */
+        .label-text {
+            color: #FFFFFF;
+            font-weight: bold;
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        /* Styling for the output container to look like the image */
+        .output-box {
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #121212;
+            border: 1px solid #333333;
+            min-height: 250px;
+            color: #AAAAAA;
+            font-size: 20px;
+            word-wrap: break-word;
+        }
+        
         .rtl {
             direction: rtl;
             text-align: right;
             font-family: inherit;
         }
-        .output-box {
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #1a1c24;
-            border: 1px solid #30363d;
-            min-height: 250px;
-            font-size: 18px;
-            white-space: pre-wrap;
+
+        /* Adjust radio button spacing */
+        div[role="radiogroup"] > label {
+            color: white !important;
         }
         </style>
     """, unsafe_allow_html=True)
-
-    st.title("English ↔ Urdu Translator")
-    st.caption("Context-aware semantic translation with Gemini & Local Fallback")
 
     # Initialize service
     try:
         settings = get_settings()
         translator = TranslatorService()
     except Exception as e:
-        st.error(f"Initialization Error: {e}")
+        st.error(f"Error: {e}")
         return
 
-    # Language Direction
+    # Language Selection (Top Left)
     direction = st.radio(
-        "Translation Direction",
+        "",
         options=["English → Urdu", "Urdu → English"],
-        horizontal=True
+        label_visibility="collapsed",
+        index=0
     )
 
     is_ur_input = "Urdu → English" in direction
     source_lang = "ur" if is_ur_input else "en"
     target_lang = "en" if is_ur_input else "ur"
 
-    # Parallel Interface
-    with st.form("translation_form", clear_on_submit=False):
-        c_in, c_out = st.columns(2)
-        
-        with c_in:
-            st.subheader("Input")
-            user_text = st.text_area(
-                "Enter text to translate",
-                placeholder="Type here...",
-                height=300,
-                label_visibility="collapsed"
-            )
-        
-        with c_out:
-            st.subheader("Translation")
-            output_placeholder = st.empty()
-            # Default state
-            output_placeholder.markdown('<div class="output-box">Result will appear here...</div>', unsafe_allow_html=True)
+    st.write("") # Spacing
 
-        st.form_submit_button("Translate Now", use_container_width=True, type="primary")
-
-    if user_text:
-        with st.spinner("Processing..."):
+    # Parallel UI structure
+    col_in, col_out = st.columns(2)
+    
+    with col_in:
+        st.markdown('<p class="label-text">INPUT</p>', unsafe_allow_html=True)
+        user_text = st.text_area(
+            "input",
+            placeholder="Enter text...",
+            height=250,
+            label_visibility="collapsed",
+            key="user_input_area"
+        )
+    
+    with col_out:
+        st.markdown('<p class="label-text">OUTPUT</p>', unsafe_allow_html=True)
+        
+        # Translation Logic
+        translated_text = ""
+        if user_text.strip():
             try:
-                # We use the standard translate_text call
-                translated = translator.translate_text(
+                # We use the key rotation and fallback logic from the backend
+                translated_text = translator.translate_text(
                     user_text,
                     target_language=target_lang,
                     source_language=source_lang
                 )
-                
-                # Update output box with alignment
-                alignment_class = "rtl" if target_lang == "ur" else "ltr"
-                output_placeholder.markdown(f"""
-                    <div class="output-box {alignment_class}">{translated}</div>
-                """, unsafe_allow_html=True)
-
             except Exception as e:
-                st.error(f"Oops! Something went wrong: {e}")
+                translated_text = f"Error: {str(e)}"
 
-    st.divider()
-    st.info("💡 Tip: Use your multiple Gemini keys for uninterrupted service!")
+        # Output Box
+        alignment_class = "rtl" if target_lang == "ur" else "ltr"
+        st.markdown(f"""
+            <div class="output-box {alignment_class}">
+                {translated_text if translated_text else ""}
+            </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
