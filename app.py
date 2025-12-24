@@ -1,6 +1,13 @@
 import streamlit as st
 from config import get_settings
 from services.translator import TranslatorService
+from services.memory import MemoryService
+import uuid
+
+def get_session_id() -> str:
+    if "session_id" not in st.session_state:
+        st.session_state["session_id"] = str(uuid.uuid4())
+    return st.session_state["session_id"]
 
 def main() -> None:
     st.set_page_config(page_title="TranslatorGO", layout="wide")
@@ -8,16 +15,9 @@ def main() -> None:
     # Precise CSS to match the reference image theme
     st.markdown("""
         <style>
-        /* Hide deploy button and other elements */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        
-        /* Set background and text colors */
-        .main {
-            background-color: #000000;
-        }
-        
-        /* Font styles for Input/Output labels */
+        .main { background-color: #000000; }
         .label-text {
             color: #FFFFFF;
             font-weight: bold;
@@ -25,8 +25,6 @@ def main() -> None:
             margin-bottom: 10px;
             text-transform: uppercase;
         }
-        
-        /* Styling for the output container to look like the image */
         .output-box {
             padding: 15px;
             border-radius: 5px;
@@ -37,27 +35,26 @@ def main() -> None:
             font-size: 20px;
             word-wrap: break-word;
         }
-        
-        .rtl {
-            direction: rtl;
-            text-align: right;
-            font-family: inherit;
-        }
-
-        /* Adjust radio button spacing */
-        div[role="radiogroup"] > label {
-            color: white !important;
-        }
+        .rtl { direction: rtl; text-align: right; }
+        div[role="radiogroup"] > label { color: white !important; }
         </style>
     """, unsafe_allow_html=True)
 
-    # Initialize service
+    # Initialize services
     try:
         settings = get_settings()
         translator = TranslatorService()
+        memory = MemoryService()
     except Exception as e:
         st.error(f"Error: {e}")
         return
+
+    session_id = get_session_id()
+
+    # History cleanup for memory
+    if st.sidebar.button("Clear History"):
+        memory.clear_history(session_id)
+        st.rerun()
 
     # Language Selection (Top Left)
     direction = st.radio(
@@ -73,42 +70,59 @@ def main() -> None:
 
     st.write("") # Spacing
 
-    # Parallel UI structure
-    col_in, col_out = st.columns(2)
-    
-    with col_in:
-        st.markdown('<p class="label-text">INPUT</p>', unsafe_allow_html=True)
-        user_text = st.text_area(
-            "input",
-            placeholder="Enter text...",
-            height=250,
-            label_visibility="collapsed",
-            key="user_input_area"
-        )
-    
-    with col_out:
-        st.markdown('<p class="label-text">OUTPUT</p>', unsafe_allow_html=True)
+    # Parallel UI within a Form for "Translate Now" button
+    with st.form("translation_panel"):
+        col_in, col_out = st.columns(2)
         
-        # Translation Logic
-        translated_text = ""
-        if user_text.strip():
-            try:
-                # We use the key rotation and fallback logic from the backend
-                translated_text = translator.translate_text(
-                    user_text,
-                    target_language=target_lang,
-                    source_language=source_lang
-                )
-            except Exception as e:
-                translated_text = f"Error: {str(e)}"
+        with col_in:
+            st.markdown('<p class="label-text">INPUT</p>', unsafe_allow_html=True)
+            user_text = st.text_area(
+                "input",
+                placeholder="Enter text to translate...",
+                height=250,
+                label_visibility="collapsed"
+            )
+        
+        with col_out:
+            st.markdown('<p class="label-text">OUTPUT</p>', unsafe_allow_html=True)
+            output_placeholder = st.empty()
+            output_placeholder.markdown('<div class="output-box">Translation will appear here...</div>', unsafe_allow_html=True)
 
-        # Output Box
-        alignment_class = "rtl" if target_lang == "ur" else "ltr"
-        st.markdown(f"""
-            <div class="output-box {alignment_class}">
-                {translated_text if translated_text else ""}
-            </div>
-        """, unsafe_allow_html=True)
+        # The "Translate Now" Button
+        submit = st.form_submit_button("Translate Now", use_container_width=True, type="primary")
+
+    if submit:
+        if not user_text.strip():
+            st.warning("Please enter some text first.")
+        else:
+            with st.spinner("Processing context-aware translation..."):
+                try:
+                    # Get history for context awareness
+                    history = memory.get_history(session_id)
+                    context_history = [(msg["role"], msg["content"]) for msg in history]
+
+                    # Translate using rotated keys and the "Heavy" Prompt
+                    translated_text = translator.translate_text(
+                        user_text,
+                        target_language=target_lang,
+                        source_language=source_lang,
+                        context_history=context_history
+                    )
+
+                    # Update UI
+                    alignment_class = "rtl" if target_lang == "ur" else "ltr"
+                    output_placeholder.markdown(f"""
+                        <div class="output-box {alignment_class}">
+                            {translated_text}
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    # Save to memory for future context
+                    memory.append_message(session_id, "user", user_text)
+                    memory.append_message(session_id, "assistant", translated_text)
+
+                except Exception as e:
+                    st.error(f"Translation failed: {str(e)}")
 
 if __name__ == "__main__":
     main()

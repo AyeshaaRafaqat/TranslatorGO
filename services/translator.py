@@ -119,15 +119,25 @@ class TranslatorService:
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # Prepare prompt with context
-                    prompt = f"Translate the following text from {source} to {target}.\n"
+                    # Specialized Heavy Prompt for High-Quality Semantic Translation
+                    system_prompt = f"""You are a professional bilingual linguist specializing in English and Urdu.
+Rules for translation:
+1. NEVER translate word-for-word. Focus on the SEMANTIC MEANING and intent.
+2. Produce natural, human-like Urdu that follows native flow and cultural nuances.
+3. If the input is part of a conversation, maintain the context and tone from previous exchanges.
+4. Adapt metaphors, idioms, and expressions conceptually rather than literally.
+5. Use formal, literary, or casual phrasing as appropriate for the content's tone.
+6. Silently review your output to ensure historical accuracy and grammatical perfection.
+
+Output ONLY the final translated text in {target}."""
+
+                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
                     if context_history:
                         prompt += "Conversation Context:\n"
-                        for role, content in context_history[-5:]: # Last 5 messages
-                            prompt += f"{role.capitalize()}: {content}\n"
+                        for role, content in context_history[-5:]:
+                            prompt += f"{role}: {content}\n"
                     
-                    prompt += f"\nText to translate: {text}\n"
-                    prompt += "Provide ONLY the translated text, no explanations."
+                    prompt += f"\nText to translate: {text}"
 
                     response = model.generate_content(prompt)
                     if response.text:
