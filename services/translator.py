@@ -116,29 +116,42 @@ class TranslatorService:
                     continue
                 
                 try:
-                    # Micro Quality Boost: Clean whitespace and quotes
+                    # Micro Quality Boost
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
+                    # --- SMART PROMPT SELECTION ---
+                    # Logic: Choose prompt based on content characteristics
+                    word_count = len(clean_text.split())
+                    
+                    if word_count > 25:
+                        # PROMPT 2: Literary / Philosophical (Best for long, complex sentences)
+                        selected_prompt = """You are a professional literary translator (English ↔ Urdu).
+- Translate conceptually, not literally.
+- Preserve philosophical depth and emotional nuance.
+- Use formal, refined, natural Urdu.
+- Rewrite any awkward phrasing internally.
+Output ONLY the final refined translation."""
+                    elif any(word in clean_text.lower() for word in ['is', 'are', 'the', 'it']):
+                        # PROMPT 5: Quality-Lock (Best for standard prose)
+                        selected_prompt = """Translate English to Urdu by meaning.
+- After translating, silently review and correct tense, flow, and literal phrasing.
+Output ONLY the corrected final translation."""
+                    else:
+                        # PROMPT 3: Anti-Machine Mode (Best for short/direct phrases)
+                        selected_prompt = """Translate as a human writer would.
+- Do NOT follow English sentence structure.
+- Produce idiomatic, natural Urdu.
+- Fix unnatural phrases internally.
+Return ONLY the final translation."""
+                    # ------------------------------
+
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # Compact but strict system prompt for Free Tier
-                    system_prompt = f"""You are an expert English ↔ Urdu translator.
-
-- Translate by meaning, not word-for-word.
-- Preserve tone, emotion, and implied meaning.
-- Produce natural, fluent, native-level Urdu.
-- Adapt metaphors and abstract ideas conceptually.
-- Use correct tense and smooth literary flow.
-- Avoid robotic or literal phrasing.
-
-Silently revise the translation to improve fluency.
-Output ONLY the final translation."""
-
-                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
+                    prompt = f"{selected_prompt}\n\nTranslate from {source} to {target}.\n"
                     if context_history:
                         prompt += "Context:\n"
-                        for role, content in context_history[-3:]: # Reduced context for token savings
+                        for role, content in context_history[-3:]: # Token efficient context
                             prompt += f"{role}: {content}\n"
                     
                     prompt += f"\nText: {clean_text}"
