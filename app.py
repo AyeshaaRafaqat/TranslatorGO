@@ -17,6 +17,16 @@ def main() -> None:
     st.set_page_config(page_title="English <-> Urdu Translator")
     st.title("English <-> Urdu Translator")
     st.caption("Context-aware translation")  
+    
+    # Custom CSS to hide the built-in copy button on hover in chat messages
+    st.markdown("""
+        <style>
+            .stChatMessage button {
+                display: none !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     # Initialize services
     try:
         settings = get_settings()
