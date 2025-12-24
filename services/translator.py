@@ -97,11 +97,9 @@ class TranslatorService:
         target_language: Optional[str] = None,
         source_language: Optional[str] = None,
         context_history: Optional[list[tuple[str, str]]] = None,
-        tone: str = "Formal"
-    ) -> str | dict[str, str]:
+    ) -> str:
         """
         Translate text using Gemini with rotation, falling back to local models.
-        Returns either a string (local fallback) or a dict with 'translation' and 'insight'.
         """
         if not text.strip():
             return ""
@@ -111,66 +109,29 @@ class TranslatorService:
 
         # Try Gemini first if keys are available
         if self.api_keys:
+            # We try all available keys before giving up or falling back
             for _ in range(len(self.api_keys)):
                 api_key = self._get_next_key()
                 if not api_key:
                     continue
                 
                 try:
-                    # Micro Quality Boost
-                    clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
-                    
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # FINAL BETTERMENT PROMPT
-                    system_prompt = f"""You are a highly skilled English ↔ Urdu translator specializing in a {tone} tone.
-
-Rules:
-- Translate by MEANING, not word-for-word.
-- Preserve implied meaning, tone, and intent.
-- Produce natural, fluent, native-level Urdu in a {tone} style.
-- Do NOT follow English sentence structure.
-- Choose idiomatic Urdu that sounds human-written.
-- Maintain correct tense and logical flow.
-- Avoid repetition, awkward phrasing, and literal patterns.
-
-Process:
-1. Silently revise the translation to improve fluency and clarity.
-2. Provide a one-short-sentence 'Meaning Insight' explaining the core nuance preserved (Under 15 words).
-
-Output Format:
-[TRANSLATION]
-(The translated text)
-[INSIGHT]
-(The meaning insight explanation)"""
-
-                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
+                    # Prepare prompt with context
+                    prompt = f"Translate the following text from {source} to {target}.\n"
                     if context_history:
-                        prompt += "Context:\n"
-                        for role, content in context_history[-3:]: # Token efficient context
-                            prompt += f"{role}: {content}\n"
+                        prompt += "Conversation Context:\n"
+                        for role, content in context_history[-5:]: # Last 5 messages
+                            prompt += f"{role.capitalize()}: {content}\n"
                     
-                    prompt += f"\nText: {clean_text}"
+                    prompt += f"\nText to translate: {text}\n"
+                    prompt += "Provide ONLY the translated text, no explanations."
 
                     response = model.generate_content(prompt)
                     if response.text:
-                        res = response.text.strip()
-                        # Parse the delimited response
-                        translation = ""
-                        insight = ""
-                        
-                        if "[TRANSLATION]" in res and "[INSIGHT]" in res:
-                            parts = res.split("[INSIGHT]")
-                            translation = parts[0].replace("[TRANSLATION]", "").strip()
-                            insight = parts[1].strip()
-                        else:
-                            translation = res
-                            
-                        return {
-                            "translation": translation,
-                            "insight": insight
-                        }
+                        return response.text.strip()
                     
                 except Exception as e:
                     error_msg = str(e).lower()
