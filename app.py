@@ -101,6 +101,10 @@ def main() -> None:
                 )
                 with st.chat_message("assistant"):
                     st.write(translated)
+                    # Use st.code as it provides a built-in copy button in the UI
+                    # which works perfectly in the browser and doesn't require server-side pyperclip
+                    st.code(translated, language=None)
+                
                 memory.append_message(session_id, "user", user_input)
                 memory.append_message(session_id, "assistant", translated)
             except Exception as exc:  # broad catch to surface errors to UI
