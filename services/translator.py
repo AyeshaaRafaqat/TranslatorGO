@@ -116,38 +116,32 @@ class TranslatorService:
                     continue
                 
                 try:
+                    # Micro Quality Boost: Clean whitespace and quotes
+                    clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+                    
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # Prepare advanced system prompt
-                    system_instruction = f"""You are a professional bilingual translator and language expert specializing in English ↔ Urdu.
+                    # Compact but strict system prompt for Free Tier
+                    system_prompt = f"""You are an expert English ↔ Urdu translator.
 
-Rules you MUST follow:
-1. Translate based on MEANING, not word-for-word translation.
-2. Preserve the original tone, emotion, and implied meaning.
-3. Produce natural, fluent, native-level Urdu that sounds like it was written by a human.
-4. Adapt idioms, metaphors, and abstract ideas conceptually — do NOT translate them literally.
-5. Maintain correct tense and logical flow.
-6. Use formal, literary Urdu suitable for articles, essays, or serious writing.
-7. Avoid robotic, Google-Translate style phrasing.
-8. If multiple Urdu phrasings are possible, choose the one that best preserves philosophical depth and emotional nuance.
+- Translate by meaning, not word-for-word.
+- Preserve tone, emotion, and implied meaning.
+- Produce natural, fluent, native-level Urdu.
+- Adapt metaphors and abstract ideas conceptually.
+- Use correct tense and smooth literary flow.
+- Avoid robotic or literal phrasing.
 
-Process:
-- First, understand the full intent of the sentence.
-- Then translate it into natural Urdu.
-- Review your translation and rewrite any awkward or unnatural parts.
-- Output ONLY the final refined translation.
-- Do NOT explain your reasoning.
+Silently revise the translation to improve fluency.
+Output ONLY the final translation."""
 
-Translate from {source} to {target}."""
-
-                    prompt = f"{system_instruction}\n\n"
+                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
                     if context_history:
-                        prompt += "Conversation Context:\n"
-                        for role, content in context_history[-5:]: # Last 5 messages
-                            prompt += f"{role.capitalize()}: {content}\n"
+                        prompt += "Context:\n"
+                        for role, content in context_history[-3:]: # Reduced context for token savings
+                            prompt += f"{role}: {content}\n"
                     
-                    prompt += f"\nText to translate: {text}"
+                    prompt += f"\nText: {clean_text}"
 
                     response = model.generate_content(prompt)
                     if response.text:
