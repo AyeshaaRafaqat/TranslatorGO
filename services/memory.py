@@ -7,9 +7,10 @@ from typing import List, TypedDict
 from config import get_settings
 
 
-class ChatMessage(TypedDict):
+class ChatMessage(TypedDict, total=False):
     role: str  # "user" or "assistant"
     content: str
+    insight: str
 
 
 class MemoryService:
@@ -37,10 +38,12 @@ class MemoryService:
         store = self._load_store()
         return store.get(session_id, [])
 
-    def append_message(self, session_id: str, role: str, content: str) -> List[ChatMessage]:
+    def append_message(self, session_id: str, role: str, content: str, **kwargs) -> List[ChatMessage]:
         store = self._load_store()
         history = store.get(session_id, [])
-        history.append({"role": role, "content": content})
+        message = {"role": role, "content": content}
+        message.update(kwargs)
+        history.append(message)
         history = history[-self.history_limit :]
         store[session_id] = history
         self._save_store(store)

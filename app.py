@@ -63,6 +63,14 @@ def main() -> None:
     )
     source_lang, target_lang, _ = direction
 
+    # Tone Selection
+    tone = st.select_slider(
+        "Select Tone",
+        options=["Casual", "Formal", "Literary"],
+        value="Formal",
+        help="Formal for business/news, Casual for daily chat, Literary for essays/poetry."
+    )
+
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("Clear conversation", type="secondary"):
@@ -78,6 +86,9 @@ def main() -> None:
     for message in history:
         with st.chat_message(message["role"]):
             st.write(message["content"])
+            if message["role"] == "assistant" and "insight" in message:
+                with st.expander("💡 Meaning Insight", expanded=False):
+                    st.caption(message["insight"])
 
     # Add a separator and note about the input box
     if not history:
@@ -102,18 +113,38 @@ def main() -> None:
                 for msg in history:
                     context_history.append((msg["role"], msg["content"]))
                 
-                # Translate with context
-                translated = translator.translate_text(
+                # Translate with context and tone
+                result = translator.translate_text(
                     user_input,
                     target_language=target_lang,
                     source_language=source_lang,
                     context_history=context_history,
+                    tone=tone
                 )
+                
+                if isinstance(result, dict):
+                    translated = result["translation"]
+                    insight = result["insight"]
+                else:
+                    translated = result
+                    insight = None
+
                 with st.chat_message("assistant"):
                     st.write(translated)
-                
+                    if insight:
+                        with st.expander("💡 Meaning Insight", expanded=True):
+                            st.caption(insight)
+
                 memory.append_message(session_id, "user", user_input)
-                memory.append_message(session_id, "assistant", translated)
+                # Store insight in memory too if it exists
+                msg_data = {"role": "assistant", "content": translated}
+                if insight:
+                    msg_data["insight"] = insight
+                
+                # Update memory.append_message to handle extra fields or just use a dict
+                # For now let's just append as normal and update memory.py if needed
+                memory.append_message(session_id, "assistant", translated, insight=insight)
+
             except Exception as exc:  # broad catch to surface errors to UI
                 with st.chat_message("assistant"):
                     st.error(f"Translation failed: {exc}")

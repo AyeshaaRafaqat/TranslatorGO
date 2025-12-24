@@ -97,9 +97,11 @@ class TranslatorService:
         target_language: Optional[str] = None,
         source_language: Optional[str] = None,
         context_history: Optional[list[tuple[str, str]]] = None,
-    ) -> str:
+        tone: str = "Formal"
+    ) -> str | dict[str, str]:
         """
         Translate text using Gemini with rotation, falling back to local models.
+        Returns either a string (local fallback) or a dict with 'translation' and 'insight'.
         """
         if not text.strip():
             return ""
@@ -109,7 +111,6 @@ class TranslatorService:
 
         # Try Gemini first if keys are available
         if self.api_keys:
-            # We try all available keys before giving up or falling back
             for _ in range(len(self.api_keys)):
                 api_key = self._get_next_key()
                 if not api_key:
@@ -119,36 +120,32 @@ class TranslatorService:
                     # Micro Quality Boost
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
-                    # --- SMART PROMPT SELECTION ---
-                    # Logic: Choose prompt based on content characteristics
-                    word_count = len(clean_text.split())
-                    
-                    if word_count > 25:
-                        # PROMPT 2: Literary / Philosophical (Best for long, complex sentences)
-                        selected_prompt = """You are a professional literary translator (English ↔ Urdu).
-- Translate conceptually, not literally.
-- Preserve philosophical depth and emotional nuance.
-- Use formal, refined, natural Urdu.
-- Rewrite any awkward phrasing internally.
-Output ONLY the final refined translation."""
-                    elif any(word in clean_text.lower() for word in ['is', 'are', 'the', 'it']):
-                        # PROMPT 5: Quality-Lock (Best for standard prose)
-                        selected_prompt = """Translate English to Urdu by meaning.
-- After translating, silently review and correct tense, flow, and literal phrasing.
-Output ONLY the corrected final translation."""
-                    else:
-                        # PROMPT 3: Anti-Machine Mode (Best for short/direct phrases)
-                        selected_prompt = """Translate as a human writer would.
-- Do NOT follow English sentence structure.
-- Produce idiomatic, natural Urdu.
-- Fix unnatural phrases internally.
-Return ONLY the final translation."""
-                    # ------------------------------
-
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    prompt = f"{selected_prompt}\n\nTranslate from {source} to {target}.\n"
+                    # FINAL BETTERMENT PROMPT
+                    system_prompt = f"""You are a highly skilled English ↔ Urdu translator specializing in a {tone} tone.
+
+Rules:
+- Translate by MEANING, not word-for-word.
+- Preserve implied meaning, tone, and intent.
+- Produce natural, fluent, native-level Urdu in a {tone} style.
+- Do NOT follow English sentence structure.
+- Choose idiomatic Urdu that sounds human-written.
+- Maintain correct tense and logical flow.
+- Avoid repetition, awkward phrasing, and literal patterns.
+
+Process:
+1. Silently revise the translation to improve fluency and clarity.
+2. Provide a one-short-sentence 'Meaning Insight' explaining the core nuance preserved (Under 15 words).
+
+Output Format:
+[TRANSLATION]
+(The translated text)
+[INSIGHT]
+(The meaning insight explanation)"""
+
+                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
                     if context_history:
                         prompt += "Context:\n"
                         for role, content in context_history[-3:]: # Token efficient context
@@ -158,7 +155,22 @@ Return ONLY the final translation."""
 
                     response = model.generate_content(prompt)
                     if response.text:
-                        return response.text.strip()
+                        res = response.text.strip()
+                        # Parse the delimited response
+                        translation = ""
+                        insight = ""
+                        
+                        if "[TRANSLATION]" in res and "[INSIGHT]" in res:
+                            parts = res.split("[INSIGHT]")
+                            translation = parts[0].replace("[TRANSLATION]", "").strip()
+                            insight = parts[1].strip()
+                        else:
+                            translation = res
+                            
+                        return {
+                            "translation": translation,
+                            "insight": insight
+                        }
                     
                 except Exception as e:
                     error_msg = str(e).lower()
