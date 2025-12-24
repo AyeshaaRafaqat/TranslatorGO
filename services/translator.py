@@ -116,28 +116,35 @@ class TranslatorService:
                     continue
                 
                 try:
+                    # 1. TEXT NORMALIZATION (Micro Quality Boost)
+                    # Removes extra whitespace and fixes "smart quotes" that confuse Gemini
+                    clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+                    
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # Specialized Heavy Prompt for High-Quality Semantic Translation
-                    system_prompt = f"""You are a professional bilingual linguist specializing in English and Urdu.
-Rules for translation:
-1. NEVER translate word-for-word. Focus on the SEMANTIC MEANING and intent.
-2. Produce natural, human-like Urdu that follows native flow and cultural nuances.
-3. If the input is part of a conversation, maintain the context and tone from previous exchanges.
-4. Adapt metaphors, idioms, and expressions conceptually rather than literally.
-5. Use formal, literary, or casual phrasing as appropriate for the content's tone.
-6. Silently review your output to ensure historical accuracy and grammatical perfection.
+                    # 2. TOKEN-LEAN SYSTEM PROMPT
+                    # This tells Gemini exactly what to do without wasting tokens on explanations.
+                    system_prompt = """You are a professional English ↔ Urdu translator. 
+Translate only the input text; do not add explanations or comments. 
+Focus on meaning, tone, and context, not word-for-word translation. 
+Preserve idioms, emotions, and implied meaning. 
+Output must be fluent, natural, and native-level in the target language. 
+Always give a single final translation. 
+Do not invent extra sentences. 
+Keep formatting simple and clear for copy-pasting."""
 
-Output ONLY the final translated text in {target}."""
-
-                    prompt = f"{system_prompt}\n\nTranslate from {source} to {target}.\n"
+                    # 3. COMPACT PROMPT CONSTRUCTION
+                    prompt = f"{system_prompt}\n\nTranslate this text from {source} to {target}.\n"
+                    
                     if context_history:
-                        prompt += "Conversation Context:\n"
-                        for role, content in context_history[-5:]:
+                        prompt += "Background Context:\n"
+                        # Only take last 3 messages to keep prompt small and relevant
+                        for role, content in context_history[-3:]:
                             prompt += f"{role}: {content}\n"
                     
-                    prompt += f"\nText to translate: {text}"
+                    prompt += f"\nInput Text: {clean_text}\n"
+                    prompt += "Final Translation:"
 
                     response = model.generate_content(prompt)
                     if response.text:
