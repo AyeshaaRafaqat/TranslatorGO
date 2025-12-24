@@ -43,7 +43,7 @@ class TranslatorService:
         return key
 
     @st.cache_resource(show_spinner=False)
-    def _load_local_models(self):
+    def _load_local_models(_self):
         """
         Load local models and tokenizers (Lazy).
         """

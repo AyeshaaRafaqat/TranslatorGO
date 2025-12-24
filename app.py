@@ -1,154 +1,127 @@
-import uuid
-
 import streamlit as st
-
 from config import get_settings
-from services.memory import MemoryService
 from services.translator import TranslatorService
 
-
-def get_session_id() -> str:
-    if "session_id" not in st.session_state:
-        st.session_state["session_id"] = str(uuid.uuid4())
-    return st.session_state["session_id"]
-
-
 def main() -> None:
-    st.set_page_config(page_title="English <-> Urdu Translator")
-    st.title("English <-> Urdu Translator")
-    st.caption("Context-aware translation")  
+    st.set_page_config(page_title="TranslatorGO | English ↔ Urdu", layout="wide")
     
-    # Custom CSS to hide the built-in copy button on hover in chat messages
+    # Premium Styling
     st.markdown("""
         <style>
-            .stChatMessage button {
-                display: none !important;
-            }
+        .main {
+            background-color: #0e1117;
+        }
+        .stTextArea textarea {
+            font-size: 18px !important;
+        }
+        .rtl {
+            direction: rtl;
+            text-align: right;
+            font-family: 'Urdu Typesetting', 'Jameel Noori Nastaleeq', sans-serif;
+        }
+        .ltr {
+            direction: ltr;
+            text-align: left;
+        }
+        .output-box {
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #1a1c24;
+            border: 1px solid #30363d;
+            min-height: 200px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    # Initialize services
+    st.title("🚀 TranslatorGO")
+    st.caption("AI-Powered Semantic English ↔ Urdu Translator")
+
+    # Initialize service
     try:
         settings = get_settings()
-        memory = MemoryService()
-        
-        # TranslatorService now handles both Gemini (preferred) and Local (fallback)
         translator = TranslatorService()
+    except Exception as e:
+        st.error(f"Initialization Error: {e}")
+        return
 
-            
-    except Exception as exc:
-        st.error(f"⚠️ Initialization error: {exc}")
-        st.info("The app will continue to run, but translation may not work. Check your internet connection and try again.")
-        # Use defaults if settings fail
-        from dataclasses import dataclass
-        @dataclass
-        class DefaultSettings:
-            default_source: str = "en"
-            default_target: str = "ur"
-        settings = DefaultSettings()
-        memory = MemoryService()
-        translator = None
-    
-    session_id = get_session_id()
+    # Sidebar / Top Controls
+    with st.expander("⚙️ Settings & Tone", expanded=True):
+        col_rot, col_tone = st.columns(2)
+        with col_rot:
+            direction = st.radio(
+                "Translation Direction",
+                options=["English → Urdu", "Urdu → English"],
+                horizontal=True
+            )
+        with col_tone:
+            tone = st.select_slider(
+                "Select Voice Tone",
+                options=["Casual", "Formal", "Literary"],
+                value="Formal"
+            )
 
-    direction = st.radio(
-        "Translation direction",
-        options=[
-            ("en", "ur", "English to Urdu"),
-            ("ur", "en", "Urdu to English"),
-        ],
-        format_func=lambda x: x[2],
-        horizontal=True,
-        index=0 if settings.default_source == "en" else 1,
-    )
-    source_lang, target_lang, _ = direction
+    is_ur_input = "Urdu → English" in direction
+    source_lang = "ur" if is_ur_input else "en"
+    target_lang = "en" if is_ur_input else "ur"
 
-    # Tone Selection
-    tone = st.select_slider(
-        "Select Tone",
-        options=["Casual", "Formal", "Literary"],
-        value="Formal",
-        help="Formal for business/news, Casual for daily chat, Literary for essays/poetry."
-    )
-
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        if st.button("Clear conversation", type="secondary"):
-            memory.clear_history(session_id)
-            st.session_state.pop("history_cache", None)
-            st.success("Conversation cleared.")
-            st.stop()
-    with col2:
-        st.write(f"Source: `{source_lang}` -> Target: `{target_lang}`")
-
-    history = memory.get_history(session_id)
-
-    for message in history:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-            if message["role"] == "assistant" and "insight" in message:
-                with st.expander("💡 Meaning Insight", expanded=False):
-                    st.caption(message["insight"])
-
-    # Add a separator and note about the input box
-    if not history:
-        st.info("💬 **Type your message in the input box below** (scroll down if you don't see it)")
-    
-    st.divider()
-    
-    # Chat input - this should always be visible at the bottom
-    user_input = st.chat_input("Type a message to translate")
-    
-    if user_input:
-        with st.chat_message("user"):
-            st.write(user_input)
+    # Main Translation Form (Parallel Boxes)
+    with st.form("translation_form", clear_on_submit=False):
+        c_in, c_out = st.columns(2)
         
-        if translator is None:
-            with st.chat_message("assistant"):
-                st.error("Translation service is not available. Please check your connection and try again.")
+        with c_in:
+            st.subheader("📝 Input")
+            user_text = st.text_area(
+                "Enter text to translate",
+                placeholder="Type something here...",
+                height=250,
+                label_visibility="collapsed"
+            )
+        
+        with c_out:
+            st.subheader("✨ Result")
+            output_placeholder = st.empty()
+            # Initial placeholder content
+            output_placeholder.markdown('<div class="output-box">Translation will appear here...</div>', unsafe_allow_html=True)
+
+        submit = st.form_submit_button("Translate Now", use_container_width=True, type="primary")
+
+    if submit:
+        if not user_text.strip():
+            st.warning("Please enter some text first.")
         else:
-            try:
-                # Build context from conversation history for context-aware translation
-                context_history = []
-                for msg in history:
-                    context_history.append((msg["role"], msg["content"]))
-                
-                # Translate with context and tone
-                result = translator.translate_text(
-                    user_input,
-                    target_language=target_lang,
-                    source_language=source_lang,
-                    context_history=context_history,
-                    tone=tone
-                )
-                
-                if isinstance(result, dict):
-                    translated = result["translation"]
-                    insight = result["insight"]
-                else:
-                    translated = result
-                    insight = None
+            with st.spinner("Translating..."):
+                try:
+                    result = translator.translate_text(
+                        user_text,
+                        target_language=target_lang,
+                        source_language=source_lang,
+                        tone=tone
+                    )
+                    
+                    if isinstance(result, dict):
+                        translated = result["translation"]
+                        insight = result["insight"]
+                    else:
+                        translated = result
+                        insight = None
 
-                with st.chat_message("assistant"):
-                    st.write(translated)
+                    # Update output box
+                    alignment_class = "ltr" if target_lang == "en" else "rtl"
+                    output_placeholder.markdown(f"""
+                        <div class="output-box {alignment_class}">
+                            {translated}
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    # Show Insight if available
                     if insight:
-                        with st.expander("💡 Meaning Insight", expanded=True):
-                            st.caption(insight)
+                        st.info(f"💡 **Meaning Insight:** {insight}")
 
-                memory.append_message(session_id, "user", user_input)
-                # Store insight in memory too if it exists
-                msg_data = {"role": "assistant", "content": translated}
-                if insight:
-                    msg_data["insight"] = insight
-                
-                # Update memory.append_message to handle extra fields or just use a dict
-                # For now let's just append as normal and update memory.py if needed
-                memory.append_message(session_id, "assistant", translated, insight=insight)
+                except Exception as e:
+                    st.error(f"Translation failed: {e}")
 
-            except Exception as exc:  # broad catch to surface errors to UI
-                with st.chat_message("assistant"):
-                    st.error(f"Translation failed: {exc}")
-
+    st.divider()
+    st.markdown("Developed for Hackathon | Powered by Google Gemini & Key Rotation")
 
 if __name__ == "__main__":
     main()
