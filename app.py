@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from config import get_settings
 from services.translator import TranslatorService
 from services.memory import MemoryService
@@ -62,6 +63,10 @@ def main() -> None:
         label_visibility="collapsed",
         index=0
     )
+    
+    # Secret Debug Check (Only visible in Cloud logs)
+    if not os.getenv("GROQ_API_KEY"):
+        print("CLOUD WARNING: GROQ_API_KEY IS MISSING IN SECRETS!")
 
     is_ur_input = "Urdu → English" in direction
     source_lang = "ur" if is_ur_input else "en"
