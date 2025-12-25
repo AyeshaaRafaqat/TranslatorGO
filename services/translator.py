@@ -124,13 +124,18 @@ class TranslatorService:
                     # 1. TEXT NORMALIZATION
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
-                    # Configure with standard transport first (most reliable)
+                    # THE ELITE MULTI-PROVIDER LOGIC 
+                    # 1. TRY GEMINI (STABLE v1beta)
                     genai.configure(api_key=api_key)
                     
-                    # STABLE MODEL CHAIN
-                    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro']
+                    # We use the most specific model names for maximum connection probability
+                    model_names = [
+                        'models/gemini-1.5-flash', 
+                        'gemini-1.5-flash',
+                        'models/gemini-pro',
+                        'gemini-pro'
+                    ]
                     
-                    last_model_error = ""
                     for model_name in model_names:
                         try:
                             # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
@@ -140,14 +145,15 @@ class TranslatorService:
                                 {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔"}
                             ]
 
-                            system_prompt = f"""You are an Elite English-Urdu Translator. 
-RULES:
-1. Translate IDEAS, not words. 
-2. Use idiomatic Urdu ('طبیعت ناساز' instead of 'موسم کے نیچے').
-3. Maintain a professional yet natural tone.
+                            system_prompt = f"""You are an Elite Linguistic Expert. 
+Translate the INPUT exactly to {target}. 
+NEVER translate literally. Use equivalent Urdu Muhaawras (idioms). 
+Maintain the perfect respect level ('Aap' for second person).
 
 EXAMPLES:
-{chr(10).join([f"- {i['en']} -> {i['ur']}" for i in tuning_dataset])}"""
+{chr(10).join([f"- {i['en']} -> {i['ur']}" for i in tuning_dataset])}
+
+OUTPUT ONLY THE TRANSLATION."""
 
                             model = genai.GenerativeModel(
                                 model_name=model_name,
@@ -155,18 +161,40 @@ EXAMPLES:
                             )
 
                             # 4. TASK EXECUTION
-                            prompt_content = f"Translate to Urdu: {clean_text}" if "1.5" not in model_name else clean_text
+                            prompt_content = f"{system_prompt}\n\nTranslate: {clean_text}" if "1.5" not in model_name else clean_text
                             
                             response = model.generate_content(prompt_content)
                             if response.text:
-                                return "✨ " + response.text.strip()
+                                return "✨ " + response.text.strip() # Indicates Elite AI
                                 
                         except Exception as inner_e:
-                            last_model_error = str(inner_e)
-                            logger.error(f"Try {model_name} failed: {last_model_error}")
+                            logger.error(f"Try {model_name} failed: {inner_e}")
                             continue 
+                            
+                    # 2. TRY GROQ (SECONDARY ELITE)
+                    groq_key = os.getenv("GROQ_API_KEY")
+                    if groq_key:
+                        try:
+                            import requests
+                            headers = {
+                                "Authorization": f"Bearer {groq_key}",
+                                "Content-Type": "application/json"
+                            }
+                            data = {
+                                "model": "llama3-70b-8192", # Industry standard for accuracy
+                                "messages": [
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": clean_text}
+                                ],
+                                "temperature": 0.5
+                            }
+                            resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data)
+                            if resp.status_code == 200:
+                                return "⚡ " + resp.json()['choices'][0]['message']['content'].strip() # Groq result
+                        except Exception as ge:
+                            logger.error(f"Groq fallback failed: {ge}")
 
-                    raise Exception(f"All models failed for this key. Last error: {last_model_error}")
+                    raise Exception("All cloud providers failed.")
                     
                 except Exception as e:
                     error_msg = str(e).lower()

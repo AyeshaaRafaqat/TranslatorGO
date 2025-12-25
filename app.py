@@ -111,14 +111,24 @@ def main() -> None:
                     # Update UI
                     alignment_class = "rtl" if target_lang == "ur" else "ltr"
                     
-                    # Detect engine based on the ✨ marker
-                    is_elite = translated_text.startswith("✨")
-                    display_text = translated_text.replace("✨ ", "").strip()
-                    engine_label = "Elite AI (Gemini)" if is_elite else "Safe Mode (Offline Fallback)"
-                    engine_color = "#00FF00" if is_elite else "#FFA500"
+                    # Detect engine based on the markers
+                    is_gemini = translated_text.startswith("✨")
+                    is_groq = translated_text.startswith("⚡")
+                    
+                    display_text = translated_text.replace("✨ ", "").replace("⚡ ", "").strip()
+                    
+                    if is_gemini:
+                        engine_label = "Elite AI (Gemini 1.5)"
+                        engine_color = "#00F5FF"
+                    elif is_groq:
+                        engine_label = "Turbo AI (Groq/Llama-3)"
+                        engine_color = "#FFD700"
+                    else:
+                        engine_label = "Safe Mode (Offline Fallback)"
+                        engine_color = "#FFA500"
 
                     output_placeholder.markdown(f"""
-                        <div style="color: {engine_color}; font-size: 14px; margin-bottom: 5px;">
+                        <div style="color: {engine_color}; font-size: 14px; margin-bottom: 5px; font-weight: bold;">
                             Engine: {engine_label}
                         </div>
                         <div class="output-box {alignment_class}">
