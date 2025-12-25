@@ -8,8 +8,8 @@ import logging
 import time
 import os
 from typing import Optional
-
 import streamlit as st
+import requests
 from transformers import MarianMTModel, MarianTokenizer
 
 from config import get_settings
@@ -121,8 +121,7 @@ Output ONLY the polished final translation."""
         groq_key = os.getenv("GROQ_API_KEY")
         if groq_key:
             try:
-                import requests
-                logger.info("Attempting Turbo AI (Groq)...")
+                logger.info(f"Targeting Groq Engine with key: {groq_key[:6]}...")
                 headers = {
                     "Authorization": f"Bearer {groq_key}",
                     "Content-Type": "application/json"
@@ -152,6 +151,8 @@ Output ONLY the polished final translation."""
                         continue
             except Exception as ge:
                 logger.error(f"Groq engine error: {ge}")
+        else:
+            logger.warning("GROQ_API_KEY NOT FOUND in Environment variables!")
 
         # --- TIER 2: LOCAL FALLBACK (SAFE MODE) ---
         logger.info("Using final Safe Mode (Local Fallback).")
