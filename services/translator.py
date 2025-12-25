@@ -127,35 +127,42 @@ class TranslatorService:
                     # Configure with REST transport for better stability on some Windows setups
                     genai.configure(api_key=api_key, transport='rest')
                     
-                    # Using the highest-fidelity configuration
-                    generation_config = {
-                        "temperature": 0.4,
-                        "top_p": 0.95,
-                        "top_k": 0,
-                        "max_output_tokens": 1024,
-                    }
-                    model = genai.GenerativeModel(
-                        model_name='gemini-pro',
-                        generation_config=generation_config
-                    )
+                    # ELITE MULTI-MODEL CHAIN 
+                    # We try different models in order of precision/availability
+                    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
                     
-                    # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
-                    tuning_dataset = [
-                        {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔", "ctx": "Idiomatic Efficiency"},
-                        {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "ctx": "Formal Health"},
-                        {"en": "Could you please assist me?", "ur": "کیا آپ میری مدد کر سکتے ہیں؟", "ctx": "Respectful Request"},
-                        {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔", "ctx": "Conversational Native"},
-                        {"en": "The economy is fluctuating.", "ur": "معیشت میں اتار چڑھاؤ آ رہا ہے۔", "ctx": "Academic/Professional"}
-                    ]
+                    last_model_error = ""
+                    for model_name in model_names:
+                        try:
+                            # Using the highest-fidelity configuration
+                            generation_config = {
+                                "temperature": 0.4,
+                                "top_p": 0.95,
+                                "top_k": 0,
+                                "max_output_tokens": 1024,
+                            }
+                            model = genai.GenerativeModel(
+                                model_name=model_name,
+                                generation_config=generation_config
+                            )
+                            
+                            # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
+                            tuning_dataset = [
+                                {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔", "ctx": "Idiomatic Efficiency"},
+                                {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "ctx": "Formal Health"},
+                                {"en": "Could you please assist me?", "ur": "کیا آپ میری مدد کر سکتے ہیں؟", "ctx": "Respectful Request"},
+                                {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔", "ctx": "Conversational Native"},
+                                {"en": "The economy is fluctuating.", "ur": "معیشت میں اتار چڑھاؤ آ رہا ہے۔", "ctx": "Academic/Professional"}
+                            ]
 
-                    # 3. ELITE CONSULTANT SYSTEM PROMPT
-                    system_prompt = f"""You are an 'Elite' English-Urdu Linguistic Consultant. 
+                            # 3. ELITE CONSULTANT SYSTEM PROMPT
+                            system_prompt = f"""You are an 'Elite' English-Urdu Linguistic Consultant. 
 Your translations represent the pinnacle of linguistic accuracy and cultural elegance.
 
 ELITE OPERATING PRINCIPLES:
 1. SOUL OF THE MESSAGE: Never translate words. Translate the 'Soul' and 'Intent'.
-2. HONORIFIC LOGIC: Always use 'آپ' (Aap) for respect. Use precise gender-noun mappings (e.g., 'آ رہا ہے' vs 'آ رہی ہے').
-3. NATIVE FLOW: Ensure the Urdu follows the SOV (Subject-Object-Verb) structure naturally. It must sound like high-quality Urdu literature, not a Google translation.
+2. HONORIFIC LOGIC: Always use 'آپ' (Aap) for respect. Use precise gender-noun mappings.
+3. NATIVE FLOW: Ensure the Urdu follows the SOV (Subject-Object-Verb) structure naturally.
 4. ZERO LITERALISM: Re-read every idiom. 'Under the weather' should NEVER mention 'weather' in Urdu. Use 'طبیعت ناساز'.
 
 KNOWLEDGE BASE (REFERENCE STANDARDS):
@@ -163,21 +170,27 @@ KNOWLEDGE BASE (REFERENCE STANDARDS):
 
 Output ONLY the final polished translation. No preamble."""
 
-                    # 4. DYNAMIC TASK CONSTRUCTION
-                    prompt = f"{system_prompt}\n\n"
-                    prompt += f"CONTEXT: Act as a master translator for a {source} to {target} request.\n"
-                    
-                    if context_history:
-                        prompt += "CONVERSATIONAL HISTORY (Analyze for pronoun/gender consistency):\n"
-                        for role, content in context_history[-3:]:
-                            prompt += f"{role}: {content}\n"
-                    
-                    prompt += f"\nINPUT TEXT: {clean_text}\n"
-                    prompt += "ELITE RESULT:"
+                            # 4. DYNAMIC TASK CONSTRUCTION
+                            prompt = f"{system_prompt}\n\n"
+                            prompt += f"CONTEXT: Act as a master translator for a {source} to {target} request.\n"
+                            
+                            if context_history:
+                                prompt += "CONVERSATIONAL HISTORY (Analyze for pronoun/gender consistency):\n"
+                                for role, content in context_history[-3:]:
+                                    prompt += f"{role}: {content}\n"
+                            
+                            prompt += f"\nINPUT TEXT: {clean_text}\n"
+                            prompt += "ELITE RESULT:"
 
-                    response = model.generate_content(prompt)
-                    if response.text:
-                        return "✨ " + response.text.strip() # Star indicates Elite AI is active
+                            response = model.generate_content(prompt)
+                            if response.text:
+                                return "✨ " + response.text.strip() # Star indicates Elite AI is active
+                        except Exception as inner_e:
+                            last_model_error = str(inner_e)
+                            continue # Try next model in the chain for this key
+
+                    # If we reach here, all models for this specific key failed
+                    raise Exception(f"Model chain exhausted for this key. Last error: {last_model_error}")
                     
                 except Exception as e:
                     error_msg = str(e).lower()
