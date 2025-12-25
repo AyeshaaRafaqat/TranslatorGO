@@ -7,6 +7,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import logging
 import random
 import time
+import os
 from typing import Optional
 
 import google.generativeai as genai
@@ -128,11 +129,11 @@ class TranslatorService:
                     # 1. TRY GEMINI (STABLE v1beta)
                     genai.configure(api_key=api_key)
                     
-                    # We use the most specific model names for maximum connection probability
                     model_names = [
-                        'models/gemini-1.5-flash', 
+                        'gemini-2.0-flash-exp',
+                        'gemini-1.5-flash-latest',
                         'gemini-1.5-flash',
-                        'models/gemini-pro',
+                        'gemini-1.5-pro',
                         'gemini-pro'
                     ]
                     
