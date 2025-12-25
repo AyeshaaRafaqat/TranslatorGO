@@ -6,6 +6,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import logging
 import random
+import time
 from typing import Optional
 
 import google.generativeai as genai
@@ -120,27 +121,26 @@ class TranslatorService:
                     continue
                 
                 try:
-                    # 1. TEXT NORMALIZATION (Micro Quality Boost)
-                    # Removes extra whitespace and fixes "smart quotes" that confuse Gemini
+                    # 1. TEXT NORMALIZATION
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
                     # Configure with REST transport for better stability on some Windows setups
                     genai.configure(api_key=api_key, transport='rest')
                     
                     # ELITE MULTI-MODEL CHAIN 
-                    # We try different models in order of precision/availability
-                    # We use the full 'models/' prefix for maximum compatibility
                     model_names = [
+                        'models/gemini-3-flash',
                         'models/gemini-1.5-flash', 
-                        'models/gemini-1.5-flash-latest',
-                        'models/gemini-pro',
+                        'models/gemini-1.5-flash-8b',
+                        'models/gemini-1.0-pro',
+                        'models/gemini-1.5-pro',
                         'models/gemini-2.0-flash-exp'
                     ]
                     
                     last_model_error = ""
                     for model_name in model_names:
                         try:
-                            # Using the highest-fidelity configuration
+                            # Using high-fidelity configuration
                             generation_config = {
                                 "temperature": 0.4,
                                 "top_p": 0.95,
@@ -191,9 +191,11 @@ Output ONLY the final polished translation. No preamble."""
                             response = model.generate_content(prompt)
                             if response.text:
                                 return "✨ " + response.text.strip() # Star indicates Elite AI is active
+                                
                         except Exception as inner_e:
                             last_model_error = str(inner_e)
-                            continue # Try next model in the chain for this key
+                            time.sleep(0.5)
+                            continue 
 
                     # If we reach here, all models for this specific key failed
                     raise Exception(f"Model chain exhausted for this key. Last error: {last_model_error}")
@@ -209,7 +211,6 @@ Output ONLY the final polished translation. No preamble."""
 
             logger.error("All Gemini API keys failed or exhausted.")
         
-        # 5. FINAL TIER: LOCAL FALLBACK (Helsinki-NLP / MarianMT)
-        # We skipped Google Translate because it lacks the semantic nuance required for this project.
+        # 5. FINAL TIER: LOCAL FALLBACK
         logger.info("Using final local fallback for translation.")
         return self._translate_local(text, source, target)
