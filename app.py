@@ -111,21 +111,16 @@ def main() -> None:
                     # Update UI
                     alignment_class = "rtl" if target_lang == "ur" else "ltr"
                     
-                    # Detect engine based on the markers
-                    is_gemini = translated_text.startswith("✨")
+                    # Detect engine based on the ⚡ marker
                     is_groq = translated_text.startswith("⚡")
+                    display_text = translated_text.replace("⚡ ", "").strip()
                     
-                    display_text = translated_text.replace("✨ ", "").replace("⚡ ", "").strip()
-                    
-                    if is_gemini:
-                        engine_label = "Elite AI (Gemini 1.5)"
-                        engine_color = "#00F5FF"
-                    elif is_groq:
+                    if is_groq:
                         engine_label = "Turbo AI (Groq/Llama-3)"
-                        engine_color = "#FFD700"
+                        engine_color = "#FFD700" # Golden for Turbo
                     else:
                         engine_label = "Safe Mode (Offline Fallback)"
-                        engine_color = "#FFA500"
+                        engine_color = "#FFA500" # Orange for Fallback
 
                     output_placeholder.markdown(f"""
                         <div style="color: {engine_color}; font-size: 14px; margin-bottom: 5px; font-weight: bold;">
