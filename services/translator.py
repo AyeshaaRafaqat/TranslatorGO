@@ -95,11 +95,14 @@ class TranslatorService:
         source = source_language or self.settings.default_source
         clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
 
-        # Define the Elite System Prompt
+        # TIER 0: THE NEURAL KNOWLEDGE BASE (CURATED DATASET)
+        # This dataset serves as the 'Fine-Tuning' logic for the engine
         tuning_dataset = [
             {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔"},
-            {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔"},
-            {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔"}
+            {"en": "I am feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔"},
+            {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔"},
+            {"en": "Keep your chin up.", "ur": "ہمت مت ہارو۔"},
+            {"en": "Break a leg!", "ur": "نیک تمنائیں!"}
         ]
 
         system_prompt = f"""You are an Elite Linguistic Expert specializing in {source} to {target} translation. 
@@ -124,19 +127,29 @@ Output ONLY the polished final translation."""
                     "Authorization": f"Bearer {groq_key}",
                     "Content-Type": "application/json"
                 }
-                data = {
-                    "model": "llama3-70b-8192",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": clean_text}
-                    ],
-                    "temperature": 0.5
-                }
-                resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=10)
-                if resp.status_code == 200:
-                    return "⚡ " + resp.json()['choices'][0]['message']['content'].strip()
-                else:
-                    logger.warning(f"Groq API returned status {resp.status_code}")
+                
+                # Latest and greatest Groq models
+                groq_models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+                
+                for g_model in groq_models:
+                    try:
+                        data = {
+                            "model": g_model,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": clean_text}
+                            ],
+                            "temperature": 0.5
+                        }
+                        resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=10)
+                        if resp.status_code == 200:
+                            return "⚡ " + resp.json()['choices'][0]['message']['content'].strip()
+                        else:
+                            logger.warning(f"Groq model {g_model} returned {resp.status_code}: {resp.text}")
+                            continue
+                    except Exception as e:
+                        logger.error(f"Error calling {g_model}: {e}")
+                        continue
             except Exception as ge:
                 logger.error(f"Groq engine error: {ge}")
 
