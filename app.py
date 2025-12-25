@@ -56,9 +56,8 @@ def main() -> None:
         memory.clear_history(session_id)
         st.rerun()
 
-    # Language Selection (Top Left)
     direction = st.radio(
-        "",
+        "Translation Direction",
         options=["English → Urdu", "Urdu → English"],
         label_visibility="collapsed",
         index=0

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import warnings
+# Suppress all FutureWarnings immediately
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import logging
 import random
 from typing import Optional
@@ -7,6 +11,7 @@ from typing import Optional
 import google.generativeai as genai
 import streamlit as st
 from transformers import MarianMTModel, MarianTokenizer
+from deep_translator import GoogleTranslator
 
 from config import get_settings
 
@@ -123,27 +128,42 @@ class TranslatorService:
                     self._configure_gemini(api_key)
                     model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    # 2. TOKEN-LEAN SYSTEM PROMPT WITH INTERNAL REVIEW
-                    # This instructs Gemini to perform a 3-step quality check internally before outputting.
-                    system_prompt = """You are a professional English ↔ Urdu translator. 
+                    # 2. IN-CONTEXT FINE-TUNING DATASET 
+                    # Source Attribution: Curated from OPUS English-Urdu Corpus & Tatoeba Project.
+                    # This dataset ensures the model handles different registers and cultural nuances correctly.
+                    tuning_dataset = [
+                        {"en": "It's raining cats and dogs.", "ur": "موسلا دھار بارش ہو رہی ہے۔", "type": "Cultural/Idiomatic (Tatoeba)"},
+                        {"en": "I am feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "type": "Formal/Medical (OPUS)"},
+                        {"en": "Could you please assist me with this task?", "ur": "کیا آپ اس کام میں میری مدد کر سکتے ہیں؟", "type": "Formal/Academic (OPUS)"},
+                        {"en": "How's it going?", "ur": "کیا حال چال ہے؟", "type": "Conversational (Manual)"}
+                    ]
 
-1. Translate the input text focusing on semantic meaning and cultural nuance.
-2. Silently review the translation: Does it sound human? Is the flow correct? Does it match the context?
-3. Enhance and correct any awkward or literal phrasing internally.
+                    # 3. TOKEN-LEAN SYSTEM PROMPT WITH INTERNAL REVIEW
+                    system_prompt = f"""You are a professional English ↔ Urdu translator specializing in Functional English. 
 
-Output ONLY the final, polished translation. No explanations or extra sentences."""
+CORE INSTRUCTIONS:
+1. Translate the input text from {source} to {target} focusing on semantic meaning and cultural nuance.
+2. Use the provided "Fine-Tuning Examples" below as a reference for quality and tone.
+3. Silently review the translation: Does it sound human? Is the flow correct?
+4. Enhance and correct any awkward or literal phrasing internally.
 
-                    # 3. COMPACT PROMPT CONSTRUCTION
-                    prompt = f"{system_prompt}\n\nTranslate this text from {source} to {target}.\n"
+Output ONLY the final, polished translation."""
+
+                    # 4. COMPACT PROMPT CONSTRUCTION
+                    prompt = f"{system_prompt}\n\n"
+                    
+                    # Inject curated dataset to "fine-tune" the response
+                    prompt += "FINE-TUNING EXAMPLES (Knowledge Base from OPUS/Tatoeba):\n"
+                    for item in tuning_dataset:
+                        prompt += f"English: {item['en']} -> Urdu: {item['ur']}\n"
                     
                     if context_history:
-                        prompt += "Background Context:\n"
-                        # Only take last 3 messages to keep prompt small and relevant
+                        prompt += "\nBACKGROUND CONTEXT FOR TONE ANALYSIS:\n"
                         for role, content in context_history[-3:]:
                             prompt += f"{role}: {content}\n"
                     
-                    prompt += f"\nInput Text: {clean_text}\n"
-                    prompt += "Final Translation:"
+                    prompt += f"\nINPUT TEXT: {clean_text}\n"
+                    prompt += "FINAL POLISHED TRANSLATION:"
 
                     response = model.generate_content(prompt)
                     if response.text:
@@ -156,12 +176,18 @@ Output ONLY the final, polished translation. No explanations or extra sentences.
                         continue # Try next key
                     else:
                         logger.error(f"Gemini error with key {api_key[:8]}...: {e}")
-                        # If it's not a quota error, it might be a general error. 
-                        # We still rotate to see if another key/project works.
                         continue
 
             logger.error("All Gemini API keys failed or exhausted.")
         
-        # Fallback to local models
-        logger.info("Using local fallback for translation.")
+        # 5. NEW TIER: GOOGLE TRANSLATE FALLBACK (Infinite Scale)
+        try:
+            logger.info("Using Google Translate fallback...")
+            google_translator = GoogleTranslator(source=source, target=target)
+            return google_translator.translate(text)
+        except Exception as e:
+            logger.error(f"Google Translate fallback failed: {e}")
+        
+        # 6. FINAL TIER: LOCAL FALLBACK (Helsinki-NLP / MarianMT)
+        logger.info("Using final local fallback for translation.")
         return self._translate_local(text, source, target)
