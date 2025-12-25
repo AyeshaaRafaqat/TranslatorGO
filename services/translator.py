@@ -129,7 +129,14 @@ class TranslatorService:
                     
                     # ELITE MULTI-MODEL CHAIN 
                     # We try different models in order of precision/availability
-                    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+                    # Including Gemini 2.0 for maximum power
+                    model_names = [
+                        'gemini-2.0-flash-exp', 
+                        'gemini-2.0-flash', 
+                        'gemini-1.5-flash', 
+                        'gemini-1.5-pro', 
+                        'gemini-pro'
+                    ]
                     
                     last_model_error = ""
                     for model_name in model_names:
