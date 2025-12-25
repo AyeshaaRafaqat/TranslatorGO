@@ -124,82 +124,49 @@ class TranslatorService:
                     # 1. TEXT NORMALIZATION
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
-                    # Configure with REST transport for better stability on some Windows setups
-                    genai.configure(api_key=api_key, transport='rest')
+                    # Configure with standard transport first (most reliable)
+                    genai.configure(api_key=api_key)
                     
-                    # ELITE MULTI-MODEL CHAIN 
-                    # Using clean names as per latest guidelines
-                    model_names = [
-                        'gemini-3-flash',
-                        'gemini-2.0-flash-exp',
-                        'gemini-1.5-flash', 
-                        'gemini-1.5-flash-latest',
-                        'gemini-1.5-pro',
-                        'gemini-pro'
-                    ]
+                    # STABLE MODEL CHAIN
+                    model_names = ['gemini-1.5-flash', 'gemini-1.5-pro']
                     
                     last_model_error = ""
                     for model_name in model_names:
                         try:
-                            # Using high-fidelity configuration
-                            generation_config = {
-                                "temperature": 0.3,
-                                "top_p": 0.95,
-                                "top_k": 0,
-                                "max_output_tokens": 1024,
-                            }
-                            
                             # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
                             tuning_dataset = [
-                                {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔", "ctx": "Idiomatic Efficiency"},
-                                {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "ctx": "Formal Health"},
-                                {"en": "Could you please assist me?", "ur": "کیا آپ میری مدد کر سکتے ہیں؟", "ctx": "Respectful Request"},
-                                {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔", "ctx": "Conversational Native"},
-                                {"en": "The economy is fluctuating.", "ur": "معیشت میں اتار چڑھاؤ آ رہا ہے۔", "ctx": "Academic/Professional"}
+                                {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔"},
+                                {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔"},
+                                {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔"}
                             ]
 
-                            # 3. ELITE CONSULTANT SYSTEM PROMPT (Modernized for system_instruction)
-                            system_prompt = f"""You are an 'Elite' English-Urdu Linguistic Consultant. 
+                            system_prompt = f"""You are an Elite English-Urdu Translator. 
+RULES:
+1. Translate IDEAS, not words. 
+2. Use idiomatic Urdu ('طبیعت ناساز' instead of 'موسم کے نیچے').
+3. Maintain a professional yet natural tone.
 
-ELITE OPERATING PRINCIPLES:
-1. SOUL OF THE MESSAGE: Never translate words. Translate the 'Soul' and 'Intent'.
-2. HONORIFIC LOGIC: Always use 'آپ' (Aap) for respect. Use precise gender-noun mappings.
-3. NATIVE FLOW: Ensure the Urdu follows the SOV structure naturally.
-4. ZERO LITERALISM: 'Under the weather' -> 'طبیعت ناساز'.
+EXAMPLES:
+{chr(10).join([f"- {i['en']} -> {i['ur']}" for i in tuning_dataset])}"""
 
-KNOWLEDGE BASE:
-{chr(10).join([f"- {i['en']} -> {i['ur']} ({i['ctx']})" for i in tuning_dataset])}
-
-Output ONLY the final translation."""
-
-                            # Use system_instruction for better performance
                             model = genai.GenerativeModel(
                                 model_name=model_name,
-                                generation_config=generation_config,
-                                system_instruction=system_prompt
+                                system_instruction=system_prompt if "1.5" in model_name else None
                             )
 
                             # 4. TASK EXECUTION
-                            prompt = f"ACT: Master translator for a {source} to {target} request.\n"
+                            prompt_content = f"Translate to Urdu: {clean_text}" if "1.5" not in model_name else clean_text
                             
-                            if context_history:
-                                prompt += "CONVERSATIONAL HISTORY:\n"
-                                for role, content in context_history[-3:]:
-                                    prompt += f"{role}: {content}\n"
-                            
-                            prompt += f"\nINPUT TEXT: {clean_text}"
-
-                            response = model.generate_content(prompt)
+                            response = model.generate_content(prompt_content)
                             if response.text:
                                 return "✨ " + response.text.strip()
                                 
                         except Exception as inner_e:
                             last_model_error = str(inner_e)
-                            time.sleep(0.5) 
+                            logger.error(f"Try {model_name} failed: {last_model_error}")
                             continue 
 
-                    # If we reach here, all models for this specific key failed
-                    raise Exception(f"Model chain exhausted for this key. Last error: {last_model_error}")
+                    raise Exception(f"All models failed for this key. Last error: {last_model_error}")
                     
                 except Exception as e:
                     error_msg = str(e).lower()
