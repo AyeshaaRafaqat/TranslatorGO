@@ -129,13 +129,12 @@ class TranslatorService:
                     
                     # ELITE MULTI-MODEL CHAIN 
                     # We try different models in order of precision/availability
-                    # Including Gemini 2.0 for maximum power
+                    # We use the full 'models/' prefix for maximum compatibility
                     model_names = [
-                        'gemini-2.0-flash-exp', 
-                        'gemini-2.0-flash', 
-                        'gemini-1.5-flash', 
-                        'gemini-1.5-pro', 
-                        'gemini-pro'
+                        'models/gemini-1.5-flash', 
+                        'models/gemini-1.5-flash-latest',
+                        'models/gemini-pro',
+                        'models/gemini-2.0-flash-exp'
                     ]
                     
                     last_model_error = ""
