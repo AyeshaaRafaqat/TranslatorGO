@@ -128,13 +128,14 @@ class TranslatorService:
                     genai.configure(api_key=api_key, transport='rest')
                     
                     # ELITE MULTI-MODEL CHAIN 
+                    # Using clean names as per latest guidelines
                     model_names = [
-                        'models/gemini-3-flash',
-                        'models/gemini-1.5-flash', 
-                        'models/gemini-1.5-flash-8b',
-                        'models/gemini-1.0-pro',
-                        'models/gemini-1.5-pro',
-                        'models/gemini-2.0-flash-exp'
+                        'gemini-3-flash',
+                        'gemini-2.0-flash-exp',
+                        'gemini-1.5-flash', 
+                        'gemini-1.5-flash-latest',
+                        'gemini-1.5-pro',
+                        'gemini-pro'
                     ]
                     
                     last_model_error = ""
@@ -142,15 +143,11 @@ class TranslatorService:
                         try:
                             # Using high-fidelity configuration
                             generation_config = {
-                                "temperature": 0.4,
+                                "temperature": 0.3,
                                 "top_p": 0.95,
                                 "top_k": 0,
                                 "max_output_tokens": 1024,
                             }
-                            model = genai.GenerativeModel(
-                                model_name=model_name,
-                                generation_config=generation_config
-                            )
                             
                             # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
                             tuning_dataset = [
@@ -161,40 +158,44 @@ class TranslatorService:
                                 {"en": "The economy is fluctuating.", "ur": "معیشت میں اتار چڑھاؤ آ رہا ہے۔", "ctx": "Academic/Professional"}
                             ]
 
-                            # 3. ELITE CONSULTANT SYSTEM PROMPT
+                            # 3. ELITE CONSULTANT SYSTEM PROMPT (Modernized for system_instruction)
                             system_prompt = f"""You are an 'Elite' English-Urdu Linguistic Consultant. 
-Your translations represent the pinnacle of linguistic accuracy and cultural elegance.
 
 ELITE OPERATING PRINCIPLES:
 1. SOUL OF THE MESSAGE: Never translate words. Translate the 'Soul' and 'Intent'.
 2. HONORIFIC LOGIC: Always use 'آپ' (Aap) for respect. Use precise gender-noun mappings.
-3. NATIVE FLOW: Ensure the Urdu follows the SOV (Subject-Object-Verb) structure naturally.
-4. ZERO LITERALISM: Re-read every idiom. 'Under the weather' should NEVER mention 'weather' in Urdu. Use 'طبیعت ناساز'.
+3. NATIVE FLOW: Ensure the Urdu follows the SOV structure naturally.
+4. ZERO LITERALISM: 'Under the weather' -> 'طبیعت ناساز'.
 
-KNOWLEDGE BASE (REFERENCE STANDARDS):
-{chr(10).join([f"Source: {i['en']} | Target: {i['ur']} ({i['ctx']})" for i in tuning_dataset])}
+KNOWLEDGE BASE:
+{chr(10).join([f"- {i['en']} -> {i['ur']} ({i['ctx']})" for i in tuning_dataset])}
 
-Output ONLY the final polished translation. No preamble."""
+Output ONLY the final translation."""
 
-                            # 4. DYNAMIC TASK CONSTRUCTION
-                            prompt = f"{system_prompt}\n\n"
-                            prompt += f"CONTEXT: Act as a master translator for a {source} to {target} request.\n"
+                            # Use system_instruction for better performance
+                            model = genai.GenerativeModel(
+                                model_name=model_name,
+                                generation_config=generation_config,
+                                system_instruction=system_prompt
+                            )
+
+                            # 4. TASK EXECUTION
+                            prompt = f"ACT: Master translator for a {source} to {target} request.\n"
                             
                             if context_history:
-                                prompt += "CONVERSATIONAL HISTORY (Analyze for pronoun/gender consistency):\n"
+                                prompt += "CONVERSATIONAL HISTORY:\n"
                                 for role, content in context_history[-3:]:
                                     prompt += f"{role}: {content}\n"
                             
-                            prompt += f"\nINPUT TEXT: {clean_text}\n"
-                            prompt += "ELITE RESULT:"
+                            prompt += f"\nINPUT TEXT: {clean_text}"
 
                             response = model.generate_content(prompt)
                             if response.text:
-                                return "✨ " + response.text.strip() # Star indicates Elite AI is active
+                                return "✨ " + response.text.strip()
                                 
                         except Exception as inner_e:
                             last_model_error = str(inner_e)
-                            time.sleep(0.5)
+                            time.sleep(0.5) 
                             continue 
 
                     # If we reach here, all models for this specific key failed
