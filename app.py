@@ -110,9 +110,19 @@ def main() -> None:
 
                     # Update UI
                     alignment_class = "rtl" if target_lang == "ur" else "ltr"
+                    
+                    # Detect engine based on the ✨ marker
+                    is_elite = translated_text.startswith("✨")
+                    display_text = translated_text.replace("✨ ", "").strip()
+                    engine_label = "Elite AI (Gemini)" if is_elite else "Safe Mode (Offline Fallback)"
+                    engine_color = "#00FF00" if is_elite else "#FFA500"
+
                     output_placeholder.markdown(f"""
+                        <div style="color: {engine_color}; font-size: 14px; margin-bottom: 5px;">
+                            Engine: {engine_label}
+                        </div>
                         <div class="output-box {alignment_class}">
-                            {translated_text}
+                            {display_text}
                         </div>
                     """, unsafe_allow_html=True)
 

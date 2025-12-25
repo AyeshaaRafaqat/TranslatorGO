@@ -124,46 +124,60 @@ class TranslatorService:
                     # Removes extra whitespace and fixes "smart quotes" that confuse Gemini
                     clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
                     
-                    self._configure_gemini(api_key)
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    # Configure with REST transport for better stability on some Windows setups
+                    genai.configure(api_key=api_key, transport='rest')
                     
-                    # 2. IN-CONTEXT FINE-TUNING DATASET 
-                    # Source Attribution: Curated from OPUS English-Urdu Corpus & Tatoeba Project.
+                    # Using the highest-fidelity configuration
+                    generation_config = {
+                        "temperature": 0.4,
+                        "top_p": 0.95,
+                        "top_k": 0,
+                        "max_output_tokens": 1024,
+                    }
+                    model = genai.GenerativeModel(
+                        model_name='gemini-pro',
+                        generation_config=generation_config
+                    )
+                    
+                    # 2. ELITE KNOWLEDGE BASE (Bilingual Nuance Dataset)
                     tuning_dataset = [
-                        {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔", "type": "Idiomatic (Tatoeba)"},
-                        {"en": "It's raining cats and dogs.", "ur": "موسلا دھار بارش ہو رہی ہے۔", "type": "Idiomatic (OPUS)"},
-                        {"en": "I am feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "type": "Formal (OPUS)"},
-                        {"en": "Could you please assist me with this task?", "ur": "کیا آپ اس کام میں میری مدد کر سکتے ہیں؟", "type": "Academic (OPUS)"}
+                        {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔", "ctx": "Idiomatic Efficiency"},
+                        {"en": "I'm feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔", "ctx": "Formal Health"},
+                        {"en": "Could you please assist me?", "ur": "کیا آپ میری مدد کر سکتے ہیں؟", "ctx": "Respectful Request"},
+                        {"en": "Don't beat around the bush.", "ur": "ادھر ادھر کی باتیں مت کرو، اصل بات پر آؤ۔", "ctx": "Conversational Native"},
+                        {"en": "The economy is fluctuating.", "ur": "معیشت میں اتار چڑھاؤ آ رہا ہے۔", "ctx": "Academic/Professional"}
                     ]
 
-                    # 3. TOKEN-LEAN SYSTEM PROMPT (Strict Professional)
-                    system_prompt = f"""You are a professional English ↔ Urdu translator specializing in Linguistic Nuance. 
+                    # 3. ELITE CONSULTANT SYSTEM PROMPT
+                    system_prompt = f"""You are an 'Elite' English-Urdu Linguistic Consultant. 
+Your translations represent the pinnacle of linguistic accuracy and cultural elegance.
 
-STRICT RULES:
-1. NEVER translate idioms literally. Always use the equivalent Urdu 'Muhaawra' (idiom).
-2. For example, 'piece of cake' should NEVER be 'کیک کا ٹکڑا'. It must be 'انتہائی آسان' or 'بائیں ہاتھ کا کھیل'.
-3. Review the 'Fine-Tuning Knowledge Base' below for quality standards.
-4. Output ONLY the final polished translation."""
+ELITE OPERATING PRINCIPLES:
+1. SOUL OF THE MESSAGE: Never translate words. Translate the 'Soul' and 'Intent'.
+2. HONORIFIC LOGIC: Always use 'آپ' (Aap) for respect. Use precise gender-noun mappings (e.g., 'آ رہا ہے' vs 'آ رہی ہے').
+3. NATIVE FLOW: Ensure the Urdu follows the SOV (Subject-Object-Verb) structure naturally. It must sound like high-quality Urdu literature, not a Google translation.
+4. ZERO LITERALISM: Re-read every idiom. 'Under the weather' should NEVER mention 'weather' in Urdu. Use 'طبیعت ناساز'.
 
-                    # 4. COMPACT PROMPT CONSTRUCTION
+KNOWLEDGE BASE (REFERENCE STANDARDS):
+{chr(10).join([f"Source: {i['en']} | Target: {i['ur']} ({i['ctx']})" for i in tuning_dataset])}
+
+Output ONLY the final polished translation. No preamble."""
+
+                    # 4. DYNAMIC TASK CONSTRUCTION
                     prompt = f"{system_prompt}\n\n"
-                    
-                    # Inject curated dataset to "fine-tune" the response
-                    prompt += "FINE-TUNING EXAMPLES (Knowledge Base from OPUS/Tatoeba):\n"
-                    for item in tuning_dataset:
-                        prompt += f"English: {item['en']} -> Urdu: {item['ur']}\n"
+                    prompt += f"CONTEXT: Act as a master translator for a {source} to {target} request.\n"
                     
                     if context_history:
-                        prompt += "\nBACKGROUND CONTEXT FOR TONE ANALYSIS:\n"
+                        prompt += "CONVERSATIONAL HISTORY (Analyze for pronoun/gender consistency):\n"
                         for role, content in context_history[-3:]:
                             prompt += f"{role}: {content}\n"
                     
                     prompt += f"\nINPUT TEXT: {clean_text}\n"
-                    prompt += "FINAL POLISHED TRANSLATION:"
+                    prompt += "ELITE RESULT:"
 
                     response = model.generate_content(prompt)
                     if response.text:
-                        return response.text.strip()
+                        return "✨ " + response.text.strip() # Star indicates Elite AI is active
                     
                 except Exception as e:
                     error_msg = str(e).lower()
