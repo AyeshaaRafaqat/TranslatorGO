@@ -155,5 +155,5 @@ Output ONLY the polished final translation."""
             logger.warning("GROQ_API_KEY NOT FOUND in Environment variables!")
 
         # --- TIER 2: LOCAL FALLBACK (SAFE MODE) ---
-        logger.info("Using final Safe Mode (Local Fallback).")
+        logger.info("Using final Safe Mode (Local Fallback VER_3_GROQ).")
         return self._translate_local(text, source, target)
