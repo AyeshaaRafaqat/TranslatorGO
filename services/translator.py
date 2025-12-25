@@ -117,23 +117,23 @@ EXAMPLES:
 
 Output ONLY the polished final translation."""
 
-        # --- TIER 1: GROQ (TURBO AI - FAST & ACCURATE) ---
-        groq_key = os.getenv("GROQ_API_KEY")
-        if groq_key:
+        # --- TIER 1: ELITE NEURAL CORE (CLOUD-OPTIMIZED INFERENCE) ---
+        neural_core_key = os.getenv("GROQ_API_KEY")
+        if neural_core_key:
             try:
-                logger.info(f"Targeting Groq Engine with key: {groq_key[:6]}...")
+                logger.info("Initializing Elite Neural Core for high-fidelity translation...")
                 headers = {
-                    "Authorization": f"Bearer {groq_key}",
+                    "Authorization": f"Bearer {neural_core_key}",
                     "Content-Type": "application/json"
                 }
                 
-                # Latest and greatest Groq models
-                groq_models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+                # Optimized Neural Model Stack (70B Parameter Architecture)
+                model_stack = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
                 
-                for g_model in groq_models:
+                for model_id in model_stack:
                     try:
                         data = {
-                            "model": g_model,
+                            "model": model_id,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": clean_text}
@@ -144,15 +144,15 @@ Output ONLY the polished final translation."""
                         if resp.status_code == 200:
                             return "⚡ " + resp.json()['choices'][0]['message']['content'].strip()
                         else:
-                            logger.warning(f"Groq model {g_model} returned {resp.status_code}: {resp.text}")
+                            logger.warning(f"Engine {model_id} status {resp.status_code}: Error in Neural Handshake")
                             continue
                     except Exception as e:
-                        logger.error(f"Error calling {g_model}: {e}")
+                        logger.error(f"Inference failure on {model_id}: {e}")
                         continue
-            except Exception as ge:
-                logger.error(f"Groq engine error: {ge}")
+            except Exception as e:
+                logger.error(f"Neural Core initialization error: {e}")
         else:
-            logger.warning("GROQ_API_KEY NOT FOUND in Environment variables!")
+            logger.warning("Cloud Inference Key not detected. Checking local redundancy...")
 
         # --- TIER 2: LOCAL FALLBACK (SAFE MODE) ---
         logger.info("Using final Safe Mode (Local Fallback VER_3_GROQ).")
