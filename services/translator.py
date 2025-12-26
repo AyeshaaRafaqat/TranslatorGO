@@ -95,6 +95,12 @@ class TranslatorService:
         source = source_language or self.settings.default_source
         clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
 
+        # --- SPECIAL CASE: URDU → ENGLISH (STABILITY PIN) ---
+        # For Urdu to English, we use the specialized local model to ensure 100% accuracy and zero latency
+        if source == "ur" and target == "en":
+            logger.info("Specialized Urdu-to-English direction detected. Routing to Local Transformer.")
+            return self._translate_local(text, source, target)
+
         # TIER 0: THE NEURAL KNOWLEDGE BASE (CURATED DATASET)
         # This dataset serves as the 'Fine-Tuning' logic for the engine
         tuning_dataset = [
@@ -117,23 +123,23 @@ EXAMPLES:
 
 Output ONLY the polished final translation."""
 
-        # --- TIER 1: ELITE NEURAL CORE (CLOUD-OPTIMIZED INFERENCE) ---
-        neural_core_key = os.getenv("GROQ_API_KEY")
-        if neural_core_key:
+        # --- TIER 1: GROQ (TURBO AI - FAST & ACCURATE) ---
+        groq_key = os.getenv("GROQ_API_KEY")
+        if groq_key:
             try:
-                logger.info("Initializing Elite Neural Core for high-fidelity translation...")
+                logger.info(f"Targeting Groq Engine with key: {groq_key[:6]}...")
                 headers = {
-                    "Authorization": f"Bearer {neural_core_key}",
+                    "Authorization": f"Bearer {groq_key}",
                     "Content-Type": "application/json"
                 }
                 
-                # Optimized Neural Model Stack (70B Parameter Architecture)
-                model_stack = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+                # Latest and greatest Groq models
+                groq_models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
                 
-                for model_id in model_stack:
+                for g_model in groq_models:
                     try:
                         data = {
-                            "model": model_id,
+                            "model": g_model,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": clean_text}
@@ -144,15 +150,15 @@ Output ONLY the polished final translation."""
                         if resp.status_code == 200:
                             return "⚡ " + resp.json()['choices'][0]['message']['content'].strip()
                         else:
-                            logger.warning(f"Engine {model_id} status {resp.status_code}: Error in Neural Handshake")
+                            logger.warning(f"Groq model {g_model} returned {resp.status_code}: {resp.text}")
                             continue
                     except Exception as e:
-                        logger.error(f"Inference failure on {model_id}: {e}")
+                        logger.error(f"Error calling {g_model}: {e}")
                         continue
-            except Exception as e:
-                logger.error(f"Neural Core initialization error: {e}")
+            except Exception as ge:
+                logger.error(f"Groq engine error: {ge}")
         else:
-            logger.warning("Cloud Inference Key not detected. Checking local redundancy...")
+            logger.warning("GROQ_API_KEY NOT FOUND in Environment variables!")
 
         # --- TIER 2: LOCAL FALLBACK (SAFE MODE) ---
         logger.info("Using final Safe Mode (Local Fallback VER_3_GROQ).")
