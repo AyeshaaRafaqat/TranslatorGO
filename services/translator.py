@@ -95,14 +95,7 @@ class TranslatorService:
         source = source_language or self.settings.default_source
         clean_text = text.strip().replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
 
-        # --- SPECIAL CASE: URDU → ENGLISH (STABILITY PIN) ---
-        # For Urdu to English, we use the specialized local model to ensure 100% accuracy and zero latency
-        if source == "ur" and target == "en":
-            logger.info("Specialized Urdu-to-English direction detected. Routing to Local Transformer.")
-            return self._translate_local(text, source, target)
-
-        # TIER 0: THE NEURAL KNOWLEDGE BASE (CURATED DATASET)
-        # This dataset serves as the 'Fine-Tuning' logic for the engine
+        # TIER 0: DYNAMIC NEURAL KNOWLEDGE BASE
         tuning_dataset = [
             {"en": "It's a piece of cake for me.", "ur": "یہ میرے لیے بائیں ہاتھ کا کھیل ہے۔"},
             {"en": "I am feeling under the weather.", "ur": "میری طبیعت کچھ ناساز ہے۔"},
@@ -111,35 +104,40 @@ class TranslatorService:
             {"en": "Break a leg!", "ur": "نیک تمنائیں!"}
         ]
 
+        # Dynamic example formatting based on direction
+        if source == "en":
+            examples = "\n".join([f"- {i['en']} -> {i['ur']}" for i in tuning_dataset])
+        else:
+            examples = "\n".join([f"- {i['ur']} -> {i['en']}" for i in tuning_dataset])
+
         system_prompt = f"""You are an Elite Linguistic Expert specializing in {source} to {target} translation. 
 RULES FOR EXCELLENCE:
 1. SOUL OF THE MESSAGE: Never translate words. Translate the 'Soul' and 'Intent'.
-2. ZERO LITERALISM: Use native idioms/Muhaawras. 'Under the weather' -> 'طبیعت ناساز'.
+2. ZERO LITERALISM: Use native idioms/Muhaawras.
 3. HONORIFIC LOGIC: Use respectful forms (e.g., 'Aap' in Urdu).
 4. NATIVE FLOW: Ensure natural structural mapping.
 
 EXAMPLES:
-{chr(10).join([f"- {i['en']} -> {i['ur']}" for i in tuning_dataset])}
+{examples}
 
 Output ONLY the polished final translation."""
 
-        # --- TIER 1: GROQ (TURBO AI - FAST & ACCURATE) ---
+        # --- TIER 1: ELITE NEURAL CORE (CLOUD INFERENCE) ---
         groq_key = os.getenv("GROQ_API_KEY")
         if groq_key:
             try:
-                logger.info(f"Targeting Groq Engine with key: {groq_key[:6]}...")
+                logger.info(f"Targeting Inference Engine for {source} -> {target}...")
                 headers = {
                     "Authorization": f"Bearer {groq_key}",
                     "Content-Type": "application/json"
                 }
                 
-                # Latest and greatest Groq models
-                groq_models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+                model_stack = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
                 
-                for g_model in groq_models:
+                for model_id in model_stack:
                     try:
                         data = {
-                            "model": g_model,
+                            "model": model_id,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": clean_text}
@@ -150,16 +148,27 @@ Output ONLY the polished final translation."""
                         if resp.status_code == 200:
                             return "⚡ " + resp.json()['choices'][0]['message']['content'].strip()
                         else:
-                            logger.warning(f"Groq model {g_model} returned {resp.status_code}: {resp.text}")
+                            logger.warning(f"Core {model_id} handshake failed: {resp.status_code}")
                             continue
                     except Exception as e:
-                        logger.error(f"Error calling {g_model}: {e}")
+                        logger.error(f"Inference failure: {e}")
                         continue
-            except Exception as ge:
-                logger.error(f"Groq engine error: {ge}")
-        else:
-            logger.warning("GROQ_API_KEY NOT FOUND in Environment variables!")
+            except Exception as e:
+                logger.error(f"Neural Core Error: {e}")
 
         # --- TIER 2: LOCAL FALLBACK (SAFE MODE) ---
-        logger.info("Using final Safe Mode (Local Fallback VER_3_GROQ).")
-        return self._translate_local(text, source, target)
+        try:
+            logger.info("Engaging Local Neural Transformer (Safe Mode)...")
+            return self._translate_local(text, source, target)
+        except Exception as local_err:
+            logger.error(f"Local Transformer failure: {local_err}")
+
+        # --- TIER 3: INVINCIBLE FALLBACK (DEEP TRANSLATION) ---
+        try:
+            from deep_translator import GoogleTranslator
+            logger.info("Engaging Deep-Translator (Safety Net)...")
+            translated = GoogleTranslator(source=source, target=target).translate(text)
+            return "✨ " + translated
+        except Exception as last_resort:
+            logger.error(f"All translation tiers failed: {last_resort}")
+            return f"Error: Translation service unavailable. (Checked 3 Tiers)"
